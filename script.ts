@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import cors from "cors";
 import express, { Request, Response } from "express";
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
 const app = express();
 
 const port = Number(process.env.PORT) || 5000;
@@ -40,12 +40,27 @@ async function run() {
 
 
 
-        app.get('/all-posts',async (req: Request, res: Response) => {
-            const result =await postCollection.find().toArray()
+        app.get('/all-posts', async (req: Request, res: Response) => {
+            const result = await postCollection.find().toArray()
             res.json(result)
         })
 
-
+    app.get('/all-posts/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        
+        // ফিক্সড: সরাসরি id ভেরিয়েবলটি পাস করতে হবে
+        const result = await postCollection.findOne({ _id: new ObjectId(id as string) });
+        
+        if (!result) {
+            return res.status(404).json({ message: "Post not found" });
+        }
+        
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: "Invalid ObjectId format" });
+    }
+});
 
 
 
