@@ -40,11 +40,55 @@ async function run() {
 
 
         // ১. আপনার আগের রাউট (সব পোস্ট দেখার জন্য)
-        app.get('/all-posts', async (req: Request, res: Response) => {
-            const result = await postCollection.find().toArray()
-            res.json(result)
-        })
+       app.get('/all-posts', async (req: Request, res: Response) => {
+    try {
+        const {
+            search = '',
+            category = 'all',
+            page = '1',
+            limit = '8'
+        } = req.query as { search?: string; category?: string; page?: string; limit?: string };
 
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.max(1, parseInt(limit) || 8);
+
+        // 🔍 ডাইনামিক কোয়েরি তৈরি করা
+        const query: any = {};
+
+        if (category && category !== 'all') {
+            query.category = category;
+        }
+
+        if (search && search.trim() !== '') {
+            // content, authorName, বা tag — যেকোনো একটাতে ম্যাচ করলেই রেজাল্টে আসবে
+            query.$or = [
+                { content: { $regex: search, $options: 'i' } },
+                { authorName: { $regex: search, $options: 'i' } },
+                { tag: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        // মোট কতগুলো পোস্ট এই ফিল্টারে ম্যাচ করে (পেজিনেশনের জন্য দরকার)
+        const totalCount = await postCollection.countDocuments(query);
+
+        const posts = await postCollection
+            .find(query)
+            .sort({ _id: -1 }) // নতুন পোস্ট আগে দেখানোর জন্য
+            .skip((pageNum - 1) * limitNum)
+            .limit(limitNum)
+            .toArray();
+
+        res.json({
+            posts,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limitNum) || 1,
+            currentPage: pageNum,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Server error while fetching posts" });
+    }
+})
         // ২. আপনার আগের রাউট (সিঙ্গেল পোস্ট দেখার জন্য)
         app.get('/all-posts/:id', async (req: Request, res: Response) => {
             try {
