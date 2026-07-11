@@ -39,32 +39,83 @@ async function run() {
 
 
 
-
+        // ১. আপনার আগের রাউট (সব পোস্ট দেখার জন্য)
         app.get('/all-posts', async (req: Request, res: Response) => {
             const result = await postCollection.find().toArray()
             res.json(result)
         })
 
-    app.get('/all-posts/:id', async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        
-        // ফিক্সড: সরাসরি id ভেরিয়েবলটি পাস করতে হবে
-        const result = await postCollection.findOne({ _id: new ObjectId(id as string) });
-        
-        if (!result) {
-            return res.status(404).json({ message: "Post not found" });
-        }
-        
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ error: "Invalid ObjectId format" });
-    }
-});
+        // ২. আপনার আগের রাউট (সিঙ্গেল পোস্ট দেখার জন্য)
+        app.get('/all-posts/:id', async (req: Request, res: Response) => {
+            try {
+                const { id } = req.params;
+                const result = await postCollection.findOne({ _id: new ObjectId(id as string) });
+                if (!result) return res.status(404).json({ message: "Post not found" });
+                res.json(result);
+            } catch (error) {
+                res.status(400).json({ error: "Invalid ObjectId format" });
+            }
+        });
+        app.patch('/all-posts/:id', async (req: Request, res: Response) => {
+            try {
+                const { id } = req.params;
+                const { userId } = req.body; // ফ্রন্টএন্ড থেকে user.id আসছে
 
+                if (!userId) {
+                    return res.status(400).json({ message: "User ID is required" });
+                }
 
+                // ১. ডাটাবেজ থেকে কারেন্ট পোস্টটি খুঁজে বের করুন
+                const post = await postCollection.findOne({ _id: new ObjectId(id as string) });
 
+                if (!post) {
+                    return res.status(404).json({ message: "Post not found" });
+                }
 
+                // ২. যদি ডাটাবেজে আগে থেকে likedBy অ্যারে না থাকে, তবে একটি খালি অ্যারে তৈরি করুন
+                const likedBy = post.likedBy || [];
+
+                // চেক করুন এই ইউজার অলরেডি লাইক দিয়েছে কি না
+                const hasLiked = likedBy.includes(userId);
+
+                let updateQuery = {};
+
+                if (hasLiked) {
+                    // ইউজার অলরেডি লাইক দিয়ে থাকলে -> অ্যারে থেকে আইডি সরান এবং likes ১ কমান
+                    updateQuery = {
+                        $pull: { likedBy: userId },
+                        $inc: { likes: -1 }
+                    };
+                } else {
+                    // ইউজার প্রথমবার লাইক দিলে -> অ্যারেতে আইডি যোগ করুন এবং likes ১ বাড়ান
+                    updateQuery = {
+                        $addToSet: { likedBy: userId }, // $addToSet দিলে কোনোভাবেই ডুপ্লিকেট আইডি ঢুকবে না
+                        $inc: { likes: 1 }
+                    };
+                }
+
+                // ৩. ডাটাবেজে ডাটা আপডেট এবং সেভ করা (CRITICAL STEP)
+                await postCollection.updateOne(
+                    { _id: new ObjectId(id as string) },
+                    updateQuery
+                );
+
+                // ৪. আপডেট হওয়ার পর ডাটাবেজ থেকে লেটেস্ট ডাটাটি আবার রিড করুন ফ্রন্টএন্ডে পাঠানোর জন্য
+                const updatedPost = await postCollection.findOne({ _id: new ObjectId(id as string) });
+
+                // ফ্রন্টএন্ডে রেসপন্স পাঠানো
+                res.json({
+                    message: hasLiked ? "Unliked" : "Liked",
+                    isLikedNow: !hasLiked,
+                    currentLikes: updatedPost?.likes || 0,
+                    likedByArray: updatedPost?.likedBy || []
+                });
+
+            } catch (error) {
+                console.error(error);
+                res.status(500).json({ error: "Server error while updating like" });
+            }
+        });
 
 
 
