@@ -2,14 +2,14 @@
     "version": 2,
     "builds": [
       {
-        "src": "index.ts",
+        "src": "script.ts",
         "use": "@vercel/node"
       }
     ],
     "routes": [
       {
         "src": "/(.*)",
-        "dest": "index.ts",
+        "dest": "script.ts",
         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
       }
     ]
