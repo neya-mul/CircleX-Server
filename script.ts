@@ -36,6 +36,7 @@ async function run() {
 
         const db = client.db('CircleX');
         const postCollection = db.collection('all-posts')
+        const userCollection = db.collection('user')
 
 
 
@@ -164,37 +165,193 @@ async function run() {
 
 
 
-app.post('/add-post', async (req: Request, res: Response) => {
-    try {
-        // 🆕 title ফিল্ডটি এখানে ডিস্ট্রাকচার করা হয়েছে
-        const { title, authorName, avatar, category, content, contentImage, tag } = req.body;
+        app.post('/add-post', async (req: Request, res: Response) => {
+            try {
+                // 🆕 title ফিল্ডটি এখানে ডিস্ট্রাকচার করা হয়েছে
+                const { title, authorName, authorEmail, avatar, category, content, contentImage, tag } = req.body;
 
-        if (!title || !authorName || !content) {
-            return res.status(400).json({ message: "Title, Author name and Content are required" });
-        }
+                if (!title || !authorName || !content) {
+                    return res.status(400).json({ message: "Title, Author name and Content are required" });
+                }
 
-        const newPost = {
-            title, // 👈 ডাটাবেজে টাইটেল সেভ হবে
-            authorName,
-            avatar,
-            category,
-            content,
-            contentImage,
-            tag,
-            likes: 0,
-            likedBy: [],
-            createdAt: new Date()
-        };
+                const newPost = {
+                    title, // 👈 ডাটাবেজে টাইটেল সেভ হবে
+                    authorName,
+                    authorEmail,
+                    avatar,
+                    category,
+                    content,
+                    contentImage,
+                    tag,
+                    likes: 0,
+                    likedBy: [],
+                    createdAt: new Date()
+                };
 
-        const result = await postCollection.insertOne(newPost);
-        res.status(201).json({ message: "Post created successfully", insertedId: result.insertedId });
-    } catch (error) {
-        res.status(500).json({ error: "Server error while adding post" });
-    }
-});
+                const result = await postCollection.insertOne(newPost);
+                res.status(201).json({ message: "Post created successfully", insertedId: result.insertedId });
+            } catch (error) {
+                res.status(500).json({ error: "Server error while adding post" });
+            }
+        });
+
+
+        app.get('/my-posts', async (req: Request, res: Response) => {
+            try {
+                const email = req.query.email as string;
+
+                if (!email) {
+                    return res.status(400).json({ message: "Email query parameter is required" });
+                }
+
+                // ডাটাবেজ থেকে ইউজারের ইমেইল অনুযায়ী ফিল্টার করা
+                const query = { authorEmail: email };
+                const posts = await postCollection.find(query).sort({ createdAt: -1 }).toArray();
+
+                return res.status(200).json(posts);
+            } catch (error) {
+                console.error("Error fetching posts:", error);
+                return res.status(500).json({ error: "Server error while fetching user posts" });
+            }
+        });
+
+        // 🗑️ ২. নির্দিষ্ট পোস্ট ডিলিট করার রাউট (Type-Safe)
+        app.delete('/delete-post/:id', async (req: Request, res: Response) => {
+            try {
+                const { id } = req.params;
+
+                // 🆕 টাইপ গার্ড চেক: নিশ্চিত হওয়া যে id কোনো অ্যারে (string[]) নয়, বরং শুধুই একটি string
+                if (!id || Array.isArray(id)) {
+                    return res.status(400).json({ message: "Invalid or multiple Post IDs provided" });
+                }
+
+                // এখন TypeScript কনফার্ম যে `id` একটি পিওর string, তাই isValid-এ এরর দেবে না
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: "Invalid Post ID format" });
+                }
+
+                const query = { _id: new ObjectId(id) };
+                const result = await postCollection.deleteOne(query);
+
+                if (result.deletedCount === 1) {
+                    return res.status(200).json({ message: "Post deleted successfully", success: true });
+                } else {
+                    return res.status(404).json({ message: "Post not found", success: false });
+                }
+            } catch (error) {
+                console.error("Error deleting post:", error);
+                return res.status(500).json({ error: "Server error while deleting post" });
+            }
+        });
+
+
+        // 🔄 ৩. পোস্ট আপডেট করার রাউট (Type-Safe)
+        app.put('/update-post/:id', async (req: Request, res: Response) => {
+            try {
+                const { id } = req.params;
+                const { title, content, category, tag, contentImage } = req.body;
+
+                if (!id || Array.isArray(id)) {
+                    return res.status(400).json({ message: "Invalid or multiple Post IDs provided" });
+                }
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: "Invalid Post ID format" });
+                }
+
+                if (!title || !content) {
+                    return res.status(400).json({ message: "Title and Content are required fields" });
+                }
+
+                const filter = { _id: new ObjectId(id) };
+                const updatedDoc = {
+                    $set: {
+                        title,
+                        content,
+                        category,
+                        tag: tag.startsWith('#') ? tag : tag ? `#${tag}` : '',
+                        contentImage,
+                        updatedAt: new Date() // এডিট করার সময় ট্র্যাক রাখার জন্য
+                    }
+                };
+
+                const result = await postCollection.updateOne(filter, updatedDoc);
+
+                if (result.matchedCount === 1) {
+                    return res.status(200).json({ message: "Post updated successfully", success: true });
+                } else {
+                    return res.status(404).json({ message: "Post not found", success: false });
+                }
+            } catch (error) {
+                console.error("Error updating post:", error);
+                return res.status(500).json({ error: "Server error while updating post" });
+            }
+        });
+
+
+        // 📊 ৪. ইউজারের অ্যানালিটিক্স ডাটা গেট করার রাউট
+        app.get('/user-analytics', async (req: Request, res: Response) => {
+            try {
+                const email = req.query.email as string;
+                if (!email) {
+                    return res.status(400).json({ message: "Email is required" });
+                }
+
+                // ১. বেসিক কাউন্টস
+                const posts = await postCollection.find({ authorEmail: email }).toArray();
+                const totalPosts = posts.length;
+                const totalLikes = posts.reduce((sum, post) => sum + (post.likes || 0), 0);
+
+                // ২. চার্টের জন্য ক্যাটাগরি বন্টন (Aggregation)
+                const categoryData = await postCollection.aggregate([
+                    { $match: { authorEmail: email } },
+                    { $group: { _id: "$category", value: { $sum: 1 } } },
+                    { $project: { name: "$_id", value: 1, _id: 0 } }
+                ]).toArray();
+
+                // ৩. টপ ৩ পারফর্মিং পোস্ট
+                const topPosts = await postCollection.find({ authorEmail: email })
+                    .sort({ likes: -1 })
+                    .limit(3)
+                    .toArray();
+
+                return res.status(200).json({ totalPosts, totalLikes, categoryData, topPosts });
+            } catch (error) {
+                return res.status(500).json({ error: "Analytics failed to load" });
+            }
+        });
 
 
 
+        // 👤 ৫. ইউজারের প্রোফাইল আপডেট করার রাউট
+        app.put('/update-profile', async (req: Request, res: Response) => {
+            try {
+                const { email, name } = req.body;
+
+                if (!email) {
+                    return res.status(400).json({ message: "User email is required" });
+                }
+                if (!name || !name.trim()) {
+                    return res.status(400).json({ message: "Name cannot be empty" });
+                }
+
+                // আপনার ইউজার কালেকশনের নাম অনুযায়ী এটি পরিবর্তন করুন (ধরে নিচ্ছি userCollection)
+                const filter = { email: email };
+                const updatedDoc = {
+                    $set: { name: name.trim() }
+                };
+
+                const result = await userCollection.updateOne(filter, updatedDoc);
+
+                // প্রোফাইল এডিট করার পর ওই ইউজারের তৈরি করা আগের পোস্টগুলোর authorName-ও আপডেট করতে চাইলে:
+                await postCollection.updateMany({ authorEmail: email }, { $set: { authorName: name.trim() } });
+
+                return res.status(200).json({ message: "Profile updated successfully", success: true });
+            } catch (error) {
+                console.error("Error updating profile:", error);
+                return res.status(500).json({ error: "Server error while updating profile" });
+            }
+        });
 
 
 
