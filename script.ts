@@ -354,6 +354,10 @@ async function run() {
         });
 
 
+        app.listen(port, () => {
+            console.log(`Example app listening on port ${port}`);
+        });
+
 
 
 
@@ -364,10 +368,6 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-        app.listen(port, () => {
-            console.log(`Example app listening on port ${port}`);
-        });
 
 
 
