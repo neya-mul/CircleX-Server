@@ -29,10 +29,10 @@ async function run() {
 
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
-        // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.connect();
+        // // Send a ping to confirm a successful connection
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
         const db = client.db('CircleX');
         const postCollection = db.collection('all-posts')
@@ -356,10 +356,6 @@ async function run() {
 
 
 
-        app.listen(port, () => {
-            console.log(`Example app listening on port ${port}`);
-        });
-
 
     } finally {
         // Ensures that the client will close when you finish/error
@@ -368,6 +364,10 @@ async function run() {
 }
 run().catch(console.dir);
 
+
+        app.listen(port, () => {
+            console.log(`Example app listening on port ${port}`);
+        });
 
 
 
