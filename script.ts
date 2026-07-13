@@ -71,7 +71,6 @@ const postCollection = db.collection('all-posts');
 const userCollection = db.collection('user');
 
 // ১. আপনার আগের রাউট (সব পোস্ট দেখার জন্য)
-
 app.get('/all-posts', async (req: Request, res: Response) => {
     try {
         const {
@@ -87,8 +86,9 @@ app.get('/all-posts', async (req: Request, res: Response) => {
 
         const query: any = {};
 
+        // Case-insensitive regex tracking to prevent capitalization string match failures
         if (category && category !== 'all') {
-            query.category = category;
+            query.category = { $regex: `^${category}$`, $options: 'i' };
         }
 
         if (search && search.trim() !== '') {
@@ -99,10 +99,9 @@ app.get('/all-posts', async (req: Request, res: Response) => {
             ];
         }
 
-        // 🔽 sortBy অনুযায়ী সঠিক সর্ট অর্ডার বেছে নেওয়া হচ্ছে
-        let sortQuery: any = { _id: -1 }; // ডিফল্ট: নতুন পোস্ট আগে
+        let sortQuery: any = { _id: -1 }; 
         if (sortBy === 'mostLiked') {
-            sortQuery = { likes: -1, _id: -1 }; // likes সমান হলে নতুনগুলো আগে
+            sortQuery = { likes: -1, _id: -1 }; 
         } else if (sortBy === 'leastLiked') {
             sortQuery = { likes: 1, _id: -1 };
         }
@@ -123,7 +122,7 @@ app.get('/all-posts', async (req: Request, res: Response) => {
             currentPage: pageNum,
         });
     } catch (error) {
-        console.error(error);
+        console.error("Backend Error:", error);
         res.status(500).json({ error: "Server error while fetching posts" });
     }
 });
