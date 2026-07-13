@@ -32,14 +32,16 @@ const postCollection = db.collection('all-posts');
 const userCollection = db.collection('user');
 
 // ১. আপনার আগের রাউট (সব পোস্ট দেখার জন্য)
+
 app.get('/all-posts', async (req: Request, res: Response) => {
     try {
         const {
             search = '',
             category = 'all',
             page = '1',
-            limit = '8'
-        } = req.query as { search?: string; category?: string; page?: string; limit?: string };
+            limit = '8',
+            sortBy = 'newest'
+        } = req.query as { search?: string; category?: string; page?: string; limit?: string; sortBy?: string };
 
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.max(1, parseInt(limit) || 8);
@@ -58,11 +60,19 @@ app.get('/all-posts', async (req: Request, res: Response) => {
             ];
         }
 
+        // 🔽 sortBy অনুযায়ী সঠিক সর্ট অর্ডার বেছে নেওয়া হচ্ছে
+        let sortQuery: any = { _id: -1 }; // ডিফল্ট: নতুন পোস্ট আগে
+        if (sortBy === 'mostLiked') {
+            sortQuery = { likes: -1, _id: -1 }; // likes সমান হলে নতুনগুলো আগে
+        } else if (sortBy === 'leastLiked') {
+            sortQuery = { likes: 1, _id: -1 };
+        }
+
         const totalCount = await postCollection.countDocuments(query);
 
         const posts = await postCollection
             .find(query)
-            .sort({ _id: -1 })
+            .sort(sortQuery)
             .skip((pageNum - 1) * limitNum)
             .limit(limitNum)
             .toArray();
