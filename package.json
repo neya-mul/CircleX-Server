@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch script.ts",
     "build": "tsc",
-    "start": "node dist/script.js"
+    "start": "node dist/script.js",
+    "dev:nodemon": "nodemon --exec \"ts-node --files\" script.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +17,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jose-cjs": "^6.2.3",
     "mongodb": "^7.5.0"
   },
   "devDependencies": {

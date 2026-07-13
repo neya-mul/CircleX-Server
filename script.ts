@@ -1,8 +1,9 @@
 import dotenv from "dotenv";
 dotenv.config();
 import cors from "cors";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { createRemoteJWKSet, jwtVerify } from "jose-cjs";
 
 const app = express();
 const port = Number(process.env.PORT) || 5000;
@@ -21,6 +22,44 @@ const client = new MongoClient(process.env.MONGO_URI as string, {
         deprecationErrors: true,
     }
 });
+
+const JWKS = createRemoteJWKSet(
+    new URL(`${process.env.FRONTEND_URL}/api/auth/jwks`)
+);
+
+export const verifyToken = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader?.startsWith("Bearer ")) {
+            return res.status(401).json({
+                message: "Unauthorized",
+            });
+        }
+
+        const token = authHeader.split(" ")[1];
+
+        const { payload } = await jwtVerify(token, JWKS);
+        console.log(payload)
+
+        req.user = payload;
+
+        next();
+    } catch (err) {
+        console.error(err);
+        return res.status(401).json({
+            message: "Invalid Token",
+        });
+    }
+};
+
+
+
+
 
 // Connect once, log success/failure, but don't block route registration
 client.connect()
@@ -90,9 +129,11 @@ app.get('/all-posts', async (req: Request, res: Response) => {
 });
 
 // ২. আপনার আগের রাউট (সিঙ্গেল পোস্ট দেখার জন্য)
-app.get('/all-posts/:id', async (req: Request, res: Response) => {
+app.get('/all-posts/:id', verifyToken, async (req: Request, res: Response) => {
+
     try {
         const { id } = req.params;
+        console.log(id)
         const result = await postCollection.findOne({ _id: new ObjectId(id as string) });
         if (!result) return res.status(404).json({ message: "Post not found" });
         res.json(result);
@@ -153,7 +194,7 @@ app.patch('/all-posts/:id', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/add-post', async (req: Request, res: Response) => {
+app.post('/add-post', verifyToken, async (req: Request, res: Response) => {
     try {
         const { title, authorName, authorEmail, avatar, category, content, contentImage, tag } = req.body;
 
