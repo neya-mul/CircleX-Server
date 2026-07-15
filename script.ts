@@ -339,16 +339,18 @@ app.get('/user-analytics', async (req: Request, res: Response) => {
     }
 });
 
+
+// 👤 ৫. ইউজারের প্রোফাইল আপডেট করার রাউট
 // 👤 ৫. ইউজারের প্রোফাইল আপডেট করার রাউট
 app.put('/update-profile', async (req: Request, res: Response) => {
     try {
         const { email, name } = req.body;
 
         if (!email) {
-            return res.status(400).json({ message: "User email is required" });
+            return res.status(400).json({ message: "User email is required", success: false });
         }
         if (!name || !name.trim()) {
-            return res.status(400).json({ message: "Name cannot be empty" });
+            return res.status(400).json({ message: "Name cannot be empty", success: false });
         }
 
         const filter = { email: email };
@@ -356,13 +358,23 @@ app.put('/update-profile', async (req: Request, res: Response) => {
             $set: { name: name.trim() }
         };
 
-        await userCollection.updateOne(filter, updatedDoc);
-        await postCollection.updateMany({ authorEmail: email }, { $set: { authorName: name.trim() } });
+        // 🔄 ইউজার কালেকশন আপডেট করা এবং ফলাফল চেক করা
+        const result = await userCollection.updateOne(filter, updatedDoc);
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "User not found", success: false });
+        }
+
+        // 📝 পোস্ট কালেকশনেও authorName সিঙ্ক করা
+        await postCollection.updateMany(
+            { authorEmail: email },
+            { $set: { authorName: name.trim() } }
+        );
 
         return res.status(200).json({ message: "Profile updated successfully", success: true });
     } catch (error) {
         console.error("Error updating profile:", error);
-        return res.status(500).json({ error: "Server error while updating profile" });
+        return res.status(500).json({ error: "Server error while updating profile", success: false });
     }
 });
 
